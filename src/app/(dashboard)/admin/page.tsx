@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { RoleSelect } from "@/components/dashboard/role-select";
+import { TriggerEtlButton } from "@/components/dashboard/trigger-etl-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,7 +19,7 @@ export default async function AdminPage() {
   ]);
 
   return (
-    <PageShell title="Admin" description="Users, roles, and platform taxonomy">
+    <PageShell title="Admin" description="Users, roles, and platform taxonomy" actions={<TriggerEtlButton />}>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <KpiCard label="Total reviews" value={reviewCount.toLocaleString()} icon={Database} />
         <KpiCard label="Users" value={String(users.length)} icon={Users} />
