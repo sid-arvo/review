@@ -8,12 +8,36 @@ import { generateExecutiveSummary } from "@/lib/ai/executive-summary";
 import { notifyAll } from "@/lib/notifications/notify";
 
 const MAX_ATTEMPTS = 3;
+const CONNECTOR_TIMEOUT_MS = 20_000;
+
+// Individual connectors (e.g. Spotify Community's best-effort feed scrape)
+// catch their own request errors and fall back to synthetic data, so they
+// never throw - which means a request that hangs past its intended timeout
+// (a stalled TCP connect that an AbortController doesn't cleanly unwind)
+// blocks the whole ETL run instead of surfacing as a retryable failure. This
+// wraps every connector call in a hard wall-clock ceiling so one bad source
+// can never stall the pipeline past a few tens of seconds.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} did not respond within ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
   let lastError: Error | undefined;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await fn();
+      return await withTimeout(fn(), CONNECTOR_TIMEOUT_MS, label);
     } catch (err) {
       lastError = err as Error;
       console.error(`[etl] ${label} attempt ${attempt}/${MAX_ATTEMPTS} failed:`, lastError.message);
