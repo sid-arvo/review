@@ -16,14 +16,13 @@ export function TriggerEtlButton() {
       const res = await fetch("/api/admin/trigger-etl", { method: "POST" });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? "ETL run failed");
+        toast.error(data.error ?? "Failed to start ETL run");
         return;
       }
-      const { fetched, new: newCount, processed, status } = data.summary;
-      toast.success(`ETL run ${status.toLowerCase()}: ${fetched} fetched, ${newCount} new, ${processed} processed`);
+      toast.success("ETL run started - check the Cron page for live progress.");
       router.refresh();
     } catch {
-      toast.error("ETL run failed");
+      toast.error("Failed to start ETL run");
     } finally {
       setPending(false);
     }
@@ -32,7 +31,7 @@ export function TriggerEtlButton() {
   return (
     <Button onClick={trigger} disabled={pending} variant="secondary" size="sm">
       <RefreshCw className={pending ? "animate-spin" : undefined} />
-      {pending ? "Running ETL..." : "Trigger ETL now"}
+      {pending ? "Starting..." : "Trigger ETL now"}
     </Button>
   );
 }

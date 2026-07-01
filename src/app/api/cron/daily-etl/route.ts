@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { env } from "@/lib/env";
 import { runDailyEtl } from "@/lib/etl/run-daily-etl";
 
@@ -11,18 +11,23 @@ function isAuthorized(request: Request): boolean {
   return url.searchParams.get("secret") === env.CRON_SECRET;
 }
 
+// Runs in after() so the pipeline isn't tied to the invoking client staying
+// connected for the full duration - see the equivalent note in
+// /api/admin/trigger-etl, which is where this was actually diagnosed.
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const summary = await runDailyEtl();
-    return NextResponse.json({ ok: true, summary });
-  } catch (err) {
-    console.error("[cron/daily-etl] fatal error:", err);
-    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 500 });
-  }
+  after(async () => {
+    try {
+      await runDailyEtl();
+    } catch (err) {
+      console.error("[cron/daily-etl] fatal error:", err);
+    }
+  });
+
+  return NextResponse.json({ ok: true, message: "ETL run started" });
 }
 
 export async function POST(request: Request) {
