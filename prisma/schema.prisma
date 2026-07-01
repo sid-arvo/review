@@ -1,0 +1,471 @@
+// Spotify Voice of Customer Intelligence Platform
+// Core data model: ingestion -> AI enrichment -> aggregation -> RAG
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector, pgcrypto]
+}
+
+// ---------------------------------------------------------------------------
+// Auth / RBAC
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  PRODUCT_MANAGER
+  UX_RESEARCHER
+  GROWTH_MANAGER
+  LEADERSHIP
+  VIEWER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  supabaseId    String    @unique // maps to Supabase auth.users.id
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  role          UserRole  @default(VIEWER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  chatSessions  ChatSession[]
+  reports       Report[]
+  savedViews    SavedView[]
+  auditLogs     AuditLog[]
+
+  @@index([role])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion
+// ---------------------------------------------------------------------------
+
+enum SourceType {
+  GOOGLE_PLAY
+  APP_STORE
+  REDDIT
+  SPOTIFY_COMMUNITY
+  TWITTER
+  YOUTUBE
+  GOOGLE_NEWS
+  NEWSAPI
+  MEDIUM
+  BLOG
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
+enum SentimentLabel {
+  VERY_NEGATIVE
+  NEGATIVE
+  NEUTRAL
+  POSITIVE
+  VERY_POSITIVE
+}
+
+enum RecommendationSurface {
+  DISCOVER_WEEKLY
+  RELEASE_RADAR
+  AI_DJ
+  DAYLIST
+  BLEND
+  SMART_SHUFFLE
+  MADE_FOR_YOU
+  RADIO
+  SEARCH
+  PLAYLIST_RECOMMENDATIONS
+  ARTIST_RADIO
+  ALBUM_RECOMMENDATIONS
+  PREMIUM
+  ADS
+  PODCASTS
+  OFFLINE_DOWNLOADS
+  LIKED_SONGS
+  QUEUE
+  LIBRARY
+  JAM
+  WRAPPED
+  FRIEND_ACTIVITY
+  COLLABORATIVE_PLAYLISTS
+  OTHER
+}
+
+model Review {
+  id                String            @id @default(uuid())
+  source            SourceType
+  externalId        String // id from the source system
+  externalUrl       String?
+  authorName        String?
+  authorHandle       String?
+  rating            Int? // 1-5 where applicable
+  country           String? // ISO-3166 alpha-2 when known
+  language          String? // ISO-639-1 detected language
+  originalText      String
+  translatedText    String?
+  cleanText         String? // normalized/cleaned text used for AI processing
+  publishedAt       DateTime
+  fetchedAt         DateTime          @default(now())
+
+  processingStatus  ProcessingStatus  @default(PENDING)
+  processingError   String?
+  processedAt       DateTime?
+
+  isDuplicate       Boolean           @default(false)
+  duplicateOfId     String?
+  duplicateOf       Review?           @relation("Duplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates        Review[]          @relation("Duplicates")
+
+  sentimentLabel    SentimentLabel?
+  sentimentScore    Float? // -1..1
+  emotions          Json? // { joy: 0.1, frustration: 0.7, ... }
+  jtbd              Json? // job-to-be-done classification { job, context, outcome }
+  intentSummary     String? // one-line AI summary of what the user is saying
+  qualityScore      Float? // signal quality / usefulness 0..1
+  isFeatureRequest  Boolean           @default(false)
+  isPainPoint       Boolean           @default(false)
+  isBugReport       Boolean           @default(false)
+  isPraise          Boolean           @default(false)
+
+  embedding         Unsupported("vector(1536)")?
+
+  clusterId         String?
+  cluster           Cluster?          @relation(fields: [clusterId], references: [id], onDelete: SetNull)
+
+  personaId         String?
+  persona           Persona?          @relation(fields: [personaId], references: [id], onDelete: SetNull)
+
+  recommendationSurfaces ReviewRecommendationSurface[]
+  topics            ReviewTopic[]
+  featureRequests   FeatureRequestMention[]
+  painPoints        PainPointMention[]
+  chatCitations     ChatCitation[]
+
+  rawJson           Json?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([source, externalId])
+  @@index([source])
+  @@index([publishedAt])
+  @@index([sentimentLabel])
+  @@index([processingStatus])
+  @@index([country])
+  @@index([language])
+  @@index([personaId])
+  @@index([clusterId])
+}
+
+model ReviewRecommendationSurface {
+  id         String                @id @default(uuid())
+  reviewId   String
+  review     Review                @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  surface    RecommendationSurface
+  confidence Float                 @default(1)
+
+  @@unique([reviewId, surface])
+  @@index([surface])
+}
+
+// ---------------------------------------------------------------------------
+// Taxonomy: topics / subtopics / feature requests / pain points / personas
+// ---------------------------------------------------------------------------
+
+model Topic {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  slug        String        @unique
+  description String?
+  parentId    String?
+  parent      Topic?        @relation("TopicHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Topic[]       @relation("TopicHierarchy")
+  color       String?
+
+  reviews     ReviewTopic[]
+
+  createdAt   DateTime      @default(now())
+
+  @@index([parentId])
+}
+
+model ReviewTopic {
+  id         String   @id @default(uuid())
+  reviewId   String
+  review     Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  topicId    String
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  confidence Float    @default(1)
+  isPrimary  Boolean  @default(false)
+
+  @@unique([reviewId, topicId])
+  @@index([topicId])
+}
+
+model FeatureRequest {
+  id          String                  @id @default(uuid())
+  title       String
+  slug        String                  @unique
+  description String?
+  surface     RecommendationSurface?
+  status      String                  @default("NEW") // NEW, TRIAGED, PLANNED, SHIPPED, DECLINED
+  priority    String                  @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  mentions    FeatureRequestMention[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@index([surface])
+  @@index([status])
+}
+
+model FeatureRequestMention {
+  id               String         @id @default(uuid())
+  reviewId         String
+  review           Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  featureRequestId String
+  featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
+  confidence       Float          @default(1)
+
+  @@unique([reviewId, featureRequestId])
+  @@index([featureRequestId])
+}
+
+model PainPoint {
+  id          String              @id @default(uuid())
+  title       String
+  slug        String              @unique
+  description String?
+  surface     RecommendationSurface?
+  severity    String              @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  mentions    PainPointMention[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([surface])
+}
+
+model PainPointMention {
+  id          String    @id @default(uuid())
+  reviewId    String
+  review      Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  painPointId String
+  painPoint   PainPoint @relation(fields: [painPointId], references: [id], onDelete: Cascade)
+  confidence  Float     @default(1)
+
+  @@unique([reviewId, painPointId])
+  @@index([painPointId])
+}
+
+model Persona {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g. Casual Listener, Power User, Podcast Enthusiast
+  slug        String   @unique
+  description String?
+  traits      Json? // list of characteristic traits
+  color       String?
+  reviews     Review[]
+  createdAt   DateTime @default(now())
+
+}
+
+// ---------------------------------------------------------------------------
+// Semantic clustering / trends / executive insights
+// ---------------------------------------------------------------------------
+
+model Cluster {
+  id             String   @id @default(uuid())
+  label          String
+  description    String?
+  summary        String?
+  size           Int      @default(0)
+  avgSentiment   Float?
+  trendDirection String? // RISING, FALLING, STABLE
+  representativeReviewIds String[] @default([])
+  centroid       Unsupported("vector(1536)")?
+  reviews        Review[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model TrendSnapshot {
+  id                  String   @id @default(uuid())
+  date                DateTime // day granularity, UTC midnight
+  scope               String   // "GLOBAL" | "TOPIC:<slug>" | "SURFACE:<enum>" | "PERSONA:<slug>" | "COUNTRY:<code>"
+  volume              Int      @default(0)
+  avgSentiment        Float?
+  positiveCount       Int      @default(0)
+  negativeCount       Int      @default(0)
+  neutralCount        Int      @default(0)
+  featureRequestCount Int      @default(0)
+  painPointCount      Int      @default(0)
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  @@unique([date, scope])
+  @@index([date])
+  @@index([scope])
+}
+
+model ExecutiveSummary {
+  id          String   @id @default(uuid())
+  periodStart DateTime
+  periodEnd   DateTime
+  headline    String
+  summary     String
+  keyInsights Json // array of { title, detail, impact, evidenceReviewIds }
+  recommendations Json // array of { title, rationale, priority }
+  metrics     Json // snapshot metrics used to ground the summary
+  createdAt   DateTime @default(now())
+
+  @@index([periodStart, periodEnd])
+}
+
+// ---------------------------------------------------------------------------
+// RAG Chat
+// ---------------------------------------------------------------------------
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String        @default("New conversation")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          String         @id @default(uuid())
+  sessionId   String
+  session     ChatSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role        String // user | assistant | system
+  content     String
+  citations   ChatCitation[]
+  createdAt   DateTime       @default(now())
+
+  @@index([sessionId])
+}
+
+model ChatCitation {
+  id            String      @id @default(uuid())
+  chatMessageId String
+  chatMessage   ChatMessage @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  reviewId      String
+  review        Review      @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  similarity    Float
+
+  @@index([chatMessageId])
+  @@index([reviewId])
+}
+
+// ---------------------------------------------------------------------------
+// Reports / saved views
+// ---------------------------------------------------------------------------
+
+model Report {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  type        String   // EXECUTIVE_SUMMARY, TOPIC_DEEP_DIVE, CUSTOM
+  filters     Json?
+  content     Json
+  isScheduled Boolean  @default(false)
+  schedule    String? // cron expression
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model SavedView {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  page      String
+  filters   Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Cron / ingestion monitoring
+// ---------------------------------------------------------------------------
+
+enum CronJobStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+model CronRun {
+  id          String        @id @default(uuid())
+  jobName     String        @default("daily-etl")
+  status      CronJobStatus @default(RUNNING)
+  startedAt   DateTime      @default(now())
+  finishedAt  DateTime?
+  durationMs  Int?
+  stats       Json? // { fetched, processed, failed, deduped, sourcesRun: [...] }
+  error       String?
+  logs        IngestionLog[]
+
+  @@index([jobName])
+  @@index([startedAt])
+}
+
+model IngestionLog {
+  id           String     @id @default(uuid())
+  cronRunId    String?
+  cronRun      CronRun?   @relation(fields: [cronRunId], references: [id], onDelete: SetNull)
+  source       SourceType
+  status       String     // SUCCESS, FAILED, SKIPPED
+  itemsFetched Int        @default(0)
+  itemsNew     Int        @default(0)
+  itemsFailed  Int        @default(0)
+  usedFallback Boolean    @default(false) // true when scraping fallback used instead of official API
+  message      String?
+  startedAt    DateTime   @default(now())
+  finishedAt   DateTime?
+  durationMs   Int?
+
+  @@index([cronRunId])
+  @@index([source])
+  @@index([startedAt])
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

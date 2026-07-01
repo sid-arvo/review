@@ -1,0 +1,55 @@
+import "server-only";
+import { UserRole } from "@prisma/client";
+import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { hasSupabase } from "@/lib/env";
+
+const DEMO_SUPABASE_ID = "demo-admin";
+
+/**
+ * Resolves the current user, auto-provisioning a Prisma User row on first
+ * sign-in. When Supabase is not configured (local/demo environments) this
+ * upserts and returns a fixed demo admin row so the full dashboard is
+ * reviewable without an OAuth setup step, while still being a real DB row
+ * other tables can reference by id.
+ */
+export async function getCurrentUser() {
+  if (!hasSupabase()) {
+    return prisma.user.upsert({
+      where: { supabaseId: DEMO_SUPABASE_ID },
+      update: {},
+      create: {
+        supabaseId: DEMO_SUPABASE_ID,
+        email: "demo.admin@spotify-voc.internal",
+        name: "Demo Admin",
+        role: UserRole.ADMIN,
+      },
+    });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser) {
+    return null;
+  }
+
+  const user = await prisma.user.upsert({
+    where: { supabaseId: authUser.id },
+    update: {
+      email: authUser.email ?? "",
+      lastLoginAt: new Date(),
+    },
+    create: {
+      supabaseId: authUser.id,
+      email: authUser.email ?? "",
+      name: (authUser.user_metadata?.full_name as string | undefined) ?? authUser.email ?? "New user",
+      avatarUrl: (authUser.user_metadata?.avatar_url as string | undefined) ?? null,
+      role: UserRole.VIEWER,
+    },
+  });
+
+  return user;
+}
