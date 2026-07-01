@@ -7,6 +7,15 @@ import { hasSupabase } from "@/lib/env";
 const DEMO_SUPABASE_ID = "demo-admin";
 
 /**
+ * DEMO_MODE bypasses the Supabase login requirement even when Supabase is
+ * fully configured, so a deployment can be shared publicly before Google/
+ * GitHub OAuth apps are set up in the Supabase dashboard (that setup happens
+ * outside this codebase and can't be automated). Unset it once real sign-in
+ * should be enforced - no code changes needed, just remove the env var.
+ */
+const DEMO_MODE = process.env.DEMO_MODE === "true";
+
+/**
  * Resolves the current user, auto-provisioning a Prisma User row on first
  * sign-in. When Supabase is not configured (local/demo environments) this
  * upserts and returns a fixed demo admin row so the full dashboard is
@@ -14,7 +23,7 @@ const DEMO_SUPABASE_ID = "demo-admin";
  * other tables can reference by id.
  */
 export async function getCurrentUser() {
-  if (!hasSupabase()) {
+  if (!hasSupabase() || DEMO_MODE) {
     return prisma.user.upsert({
       where: { supabaseId: DEMO_SUPABASE_ID },
       update: {},
