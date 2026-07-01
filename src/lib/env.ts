@@ -16,6 +16,15 @@ const envSchema = z.object({
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-large"),
   EMBEDDING_DIMENSIONS: z.coerce.number().default(1536),
 
+  // Groq (https://groq.com) is an OpenAI-compatible chat completion provider
+  // with a free tier. It has no embeddings model, so embeddings still fall
+  // back to the deterministic heuristic unless OPENAI_API_KEY is also set
+  // with usable quota. When both are configured, Groq is preferred for chat
+  // completions since it's free; OpenAI (if it has quota) is used for
+  // embeddings only.
+  GROQ_API_KEY: z.string().optional().default(""),
+  GROQ_CHAT_MODEL: z.string().default("openai/gpt-oss-20b"),
+
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: z.string().optional().default(""),
   GOOGLE_PLAY_PACKAGE_NAME: z.string().default("com.spotify.music"),
   APPLE_APP_ID: z.string().default("324684580"),
@@ -56,4 +65,9 @@ function loadEnv(): Env {
 export const env = loadEnv();
 
 export const hasOpenAI = () => Boolean(env.OPENAI_API_KEY);
+export const hasGroq = () => Boolean(env.GROQ_API_KEY);
+/** Any provider capable of chat completions / structured-output enrichment. */
+export const hasChatAI = () => hasGroq() || hasOpenAI();
+/** Only OpenAI provides embeddings among the configured providers. */
+export const hasEmbeddingAI = () => hasOpenAI();
 export const hasSupabase = () => Boolean(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY);

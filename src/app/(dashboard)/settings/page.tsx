@@ -1,11 +1,25 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { env } from "@/lib/env";
+import { env, hasChatAI, hasEmbeddingAI } from "@/lib/env";
+import { CHAT_MODEL, CHAT_PROVIDER } from "@/lib/ai/openai-client";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 const INTEGRATIONS = [
-  { label: "OpenAI (GPT + Embeddings)", configured: Boolean(env.OPENAI_API_KEY), note: "Falls back to deterministic heuristics when unset" },
+  {
+    label: "Chat / AI enrichment",
+    configured: hasChatAI(),
+    note: hasChatAI()
+      ? `Using ${CHAT_PROVIDER === "groq" ? "Groq (free)" : "OpenAI"} - model: ${CHAT_MODEL}`
+      : "Falls back to deterministic heuristics when unset",
+  },
+  {
+    label: "Embeddings (semantic search)",
+    configured: hasEmbeddingAI(),
+    note: hasEmbeddingAI()
+      ? "Using OpenAI text-embedding-3-large - if this key has no quota, calls fail and fall back automatically"
+      : "Falls back to a deterministic hash-based vector (works, but not semantically meaningful) - only OpenAI provides embeddings among configured providers",
+  },
   { label: "Supabase Auth", configured: Boolean(env.NEXT_PUBLIC_SUPABASE_URL), note: "Falls back to a local demo admin session" },
   { label: "Google Play Developer API", configured: Boolean(env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON), note: "Falls back to synthetic reviews" },
   { label: "X (Twitter) API", configured: Boolean(env.TWITTER_BEARER_TOKEN), note: "Falls back to synthetic reviews" },

@@ -3,7 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { prisma } from "@/lib/prisma";
 import { retrieveContext } from "@/lib/rag/retrieve";
 import { synthesizeHeuristicAnswer } from "@/lib/rag/heuristic-answer";
-import { hasOpenAI, env } from "@/lib/env";
+import { hasChatAI, hasGroq, env } from "@/lib/env";
 import { CHAT_MODEL } from "@/lib/ai/openai-client";
 
 export const runtime = "nodejs";
@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   const reviewIds = citations.map((c) => c.id);
   const citationHeader = Buffer.from(JSON.stringify(citations.map((c) => ({ id: c.id, source: c.source, publishedAt: c.publishedAt, similarity: c.similarity, snippet: (c.cleanText ?? c.originalText).slice(0, 200) })))).toString("base64");
 
-  if (!hasOpenAI()) {
+  if (!hasChatAI()) {
     const answer = synthesizeHeuristicAnswer(question, citations);
     const assistantMessage = await prisma.chatMessage.create({ data: { sessionId, role: "assistant", content: answer } });
     await persistCitations(assistantMessage.id, reviewIds);
@@ -50,7 +50,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
     });
   }
 
-  const openaiProvider = createOpenAI({ apiKey: env.OPENAI_API_KEY });
+  const openaiProvider = hasGroq()
+    ? createOpenAI({ apiKey: env.GROQ_API_KEY, baseURL: "https://api.groq.com/openai/v1" })
+    : createOpenAI({ apiKey: env.OPENAI_API_KEY });
   const priorMessages = await prisma.chatMessage.findMany({
     where: { sessionId },
     orderBy: { createdAt: "asc" },

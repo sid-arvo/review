@@ -7,7 +7,7 @@ import { embedText } from "@/lib/ai/embeddings";
 import { findExactDuplicate, findNearDuplicate } from "@/lib/ai/dedupe";
 import { heuristicEnrich } from "@/lib/ai/heuristics";
 import { llmEnrich } from "@/lib/ai/llm-enrich";
-import { hasOpenAI } from "@/lib/env";
+import { hasChatAI } from "@/lib/env";
 import { setReviewEmbedding } from "@/lib/vector";
 import { persistEnrichment } from "@/lib/ai/persist";
 import type { EnrichmentResult } from "@/lib/ai/types";
@@ -58,7 +58,7 @@ function routeAfterDedupe(state: PipelineStateType) {
 }
 
 async function enrichNode(state: PipelineStateType) {
-  const enrichment = hasOpenAI()
+  const enrichment = hasChatAI()
     ? await llmEnrich(state.textForAnalysis, state.ratingHint)
     : heuristicEnrich(state.originalText, state.textForAnalysis, state.ratingHint);
 

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hasOpenAI } from "@/lib/env";
-import { getOpenAI, CHAT_MODEL } from "@/lib/ai/openai-client";
+import { hasChatAI } from "@/lib/env";
+import { getChatClient, CHAT_MODEL, REASONING_EFFORT_OPTION } from "@/lib/ai/openai-client";
 import { TOPIC_TAXONOMY, SURFACE_LABELS } from "@/lib/domain/spotify";
 
 interface KeyInsight {
@@ -101,10 +101,10 @@ export async function generateExecutiveSummary(periodDays = 30) {
     `${negativeSurfaces[0] ? `${SURFACE_LABELS[negativeSurfaces[0].surface as keyof typeof SURFACE_LABELS] ?? negativeSurfaces[0].surface} shows the weakest sentiment of any surface this period.` : ""} ` +
     `Top requested improvement: ${topFeatureRequests[0]?.title ?? "N/A"}.`;
 
-  if (hasOpenAI()) {
+  if (hasChatAI()) {
     try {
-      const openai = getOpenAI();
-      const completion = await openai.chat.completions.create({
+      const chatClient = getChatClient();
+      const completion = await chatClient.chat.completions.create({
         model: CHAT_MODEL,
         messages: [
           {
@@ -114,6 +114,7 @@ export async function generateExecutiveSummary(periodDays = 30) {
           { role: "user", content: JSON.stringify({ current: current._count, prior: prior._count, currentAvg, priorAvg, topPainPoints: topPainPoints.map(p=>p.title), topFeatureRequests: topFeatureRequests.map(f=>f.title), negativeSurfaces }) },
         ],
         temperature: 0.4,
+        ...REASONING_EFFORT_OPTION,
       });
       summary = completion.choices[0].message.content?.trim() ?? summary;
     } catch (err) {

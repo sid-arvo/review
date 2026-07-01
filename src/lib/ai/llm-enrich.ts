@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { getOpenAI, CHAT_MODEL } from "@/lib/ai/openai-client";
+import { getChatClient, CHAT_MODEL, REASONING_EFFORT_OPTION } from "@/lib/ai/openai-client";
 import { RecommendationSurface } from "@prisma/client";
 import { TOPIC_TAXONOMY, PERSONA_TAXONOMY } from "@/lib/domain/spotify";
 import type { EnrichmentResult } from "@/lib/ai/types";
@@ -10,10 +10,22 @@ const TOPIC_SLUGS = TOPIC_TAXONOMY.map((t) => t.slug) as [string, ...string[]];
 const PERSONA_SLUGS = PERSONA_TAXONOMY.map((p) => p.slug) as [string, ...string[]];
 const SURFACE_VALUES = Object.values(RecommendationSurface) as [RecommendationSurface, ...RecommendationSurface[]];
 
+// A fixed-shape object (rather than z.record) since some OpenAI-compatible
+// providers' strict JSON-schema validators (e.g. Groq) don't support
+// propertyNames/additionalProperties patterns needed for open-ended records.
+const EmotionsSchema = z.object({
+  joy: z.number().min(0).max(1),
+  excitement: z.number().min(0).max(1),
+  frustration: z.number().min(0).max(1),
+  disappointment: z.number().min(0).max(1),
+  confusion: z.number().min(0).max(1),
+  gratitude: z.number().min(0).max(1),
+});
+
 const LlmEnrichmentSchema = z.object({
   sentimentLabel: z.enum(["VERY_NEGATIVE", "NEGATIVE", "NEUTRAL", "POSITIVE", "VERY_POSITIVE"]),
   sentimentScore: z.number().min(-1).max(1),
-  emotions: z.record(z.string(), z.number().min(0).max(1)),
+  emotions: EmotionsSchema,
   intentSummary: z.string(),
   qualityScore: z.number().min(0).max(1),
   isFeatureRequest: z.boolean(),
@@ -36,8 +48,8 @@ Given a single piece of public user feedback, extract structured signal for prod
 /** Single combined structured-output call per review - cheaper and faster than one call per field. */
 export async function llmEnrich(cleanedText: string, ratingHint?: number): Promise<Omit<EnrichmentResult, "cleanText" | "language" | "translatedText">> {
   try {
-    const openai = getOpenAI();
-    const completion = await openai.chat.completions.parse({
+    const chatClient = getChatClient();
+    const completion = await chatClient.chat.completions.parse({
       model: CHAT_MODEL,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -48,15 +60,18 @@ export async function llmEnrich(cleanedText: string, ratingHint?: number): Promi
       ],
       response_format: zodResponseFormat(LlmEnrichmentSchema, "enrichment"),
       temperature: 0.2,
+      ...REASONING_EFFORT_OPTION,
     });
 
     const parsed = completion.choices[0].message.parsed;
     if (!parsed) throw new Error("Model returned no parsed content");
 
+    const emotions = Object.fromEntries(Object.entries(parsed.emotions).filter(([, v]) => v > 0.05));
+
     return {
       sentimentLabel: parsed.sentimentLabel,
       sentimentScore: parsed.sentimentScore,
-      emotions: parsed.emotions,
+      emotions,
       intentSummary: parsed.intentSummary,
       qualityScore: parsed.qualityScore,
       isFeatureRequest: parsed.isFeatureRequest,

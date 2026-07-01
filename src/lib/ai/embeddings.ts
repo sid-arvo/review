@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { hasOpenAI } from "@/lib/env";
+import { hasEmbeddingAI } from "@/lib/env";
 import { getOpenAI, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from "@/lib/ai/openai-client";
 
 /**
@@ -24,27 +24,37 @@ function fallbackEmbedding(text: string, dims = EMBEDDING_DIMENSIONS): number[] 
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  if (!hasOpenAI()) {
+  if (!hasEmbeddingAI()) {
     return fallbackEmbedding(text);
   }
-  const openai = getOpenAI();
-  const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: text.slice(0, 8000),
-    dimensions: EMBEDDING_DIMENSIONS,
-  });
-  return response.data[0].embedding;
+  try {
+    const openai = getOpenAI();
+    const response = await openai.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: text.slice(0, 8000),
+      dimensions: EMBEDDING_DIMENSIONS,
+    });
+    return response.data[0].embedding;
+  } catch (err) {
+    console.error("[embedText] OpenAI call failed, falling back to heuristic embedding:", (err as Error).message);
+    return fallbackEmbedding(text);
+  }
 }
 
 export async function embedBatch(texts: string[]): Promise<number[][]> {
-  if (!hasOpenAI()) {
+  if (!hasEmbeddingAI()) {
     return texts.map((t) => fallbackEmbedding(t));
   }
-  const openai = getOpenAI();
-  const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: texts.map((t) => t.slice(0, 8000)),
-    dimensions: EMBEDDING_DIMENSIONS,
-  });
-  return response.data.map((d) => d.embedding);
+  try {
+    const openai = getOpenAI();
+    const response = await openai.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: texts.map((t) => t.slice(0, 8000)),
+      dimensions: EMBEDDING_DIMENSIONS,
+    });
+    return response.data.map((d) => d.embedding);
+  } catch (err) {
+    console.error("[embedBatch] OpenAI call failed, falling back to heuristic embeddings:", (err as Error).message);
+    return texts.map((t) => fallbackEmbedding(t));
+  }
 }
