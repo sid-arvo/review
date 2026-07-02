@@ -31,6 +31,7 @@ const ingestionWorker = new Worker(
   async (job: Job<{ source: SourceType }>) => {
     const { source } = job.data;
     const connector = CONNECTORS[source];
+    if (!connector) throw new Error(`No ingestion connector registered for source ${source}`);
     const result = await connector();
 
     const newIds: string[] = [];

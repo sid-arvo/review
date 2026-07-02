@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import { SOURCE_LABELS, SURFACE_LABELS, COUNTRY_NAMES } from "@/lib/domain/spotify";
-import { RecommendationSurface, SentimentLabel, SourceType } from "@prisma/client";
+import { SOURCE_LABELS, SURFACE_LABELS, COUNTRY_NAMES, ACTIVE_SOURCES } from "@/lib/domain/spotify";
+import { RecommendationSurface, SentimentLabel } from "@prisma/client";
 import { LOOKBACK_OPTIONS } from "@/lib/filters";
 import type { FilterOptions } from "@/lib/queries/filter-options";
 
@@ -76,7 +76,7 @@ export function FilterBar({ options, showTopic = true, showSurface = true }: Fil
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All sources</SelectItem>
-          {Object.values(SourceType).map((s) => (
+          {ACTIVE_SOURCES.map((s) => (
             <SelectItem key={s} value={s}>
               {SOURCE_LABELS[s]}
             </SelectItem>

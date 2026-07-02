@@ -7,12 +7,11 @@ import { runClustering } from "@/lib/ai/clustering";
 import { computeTrendSnapshots } from "@/lib/ai/trends";
 import { generateExecutiveSummary } from "@/lib/ai/executive-summary";
 
-const DEFAULT_SOURCE_VOLUMES: Record<SourceType, number> = {
-  GOOGLE_PLAY: 220,
+// Google Play, Twitter/X, and Spotify Community are excluded - see
+// ACTIVE_SOURCES in @/lib/domain/spotify.
+const DEFAULT_SOURCE_VOLUMES: Partial<Record<SourceType, number>> = {
   APP_STORE: 180,
   REDDIT: 160,
-  SPOTIFY_COMMUNITY: 120,
-  TWITTER: 200,
   YOUTUBE: 110,
   GOOGLE_NEWS: 35,
   NEWSAPI: 25,

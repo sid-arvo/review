@@ -1,4 +1,4 @@
-import { RecommendationSurface } from "@prisma/client";
+import { RecommendationSurface, SourceType } from "@prisma/client";
 
 export const SURFACE_LABELS: Record<RecommendationSurface, string> = {
   DISCOVER_WEEKLY: "Discover Weekly",
@@ -71,17 +71,29 @@ export const PERSONA_TAXONOMY: Array<{ name: string; slug: string; description: 
 ];
 
 export const SOURCE_LABELS: Record<string, string> = {
-  GOOGLE_PLAY: "Google Play Store",
   APP_STORE: "Apple App Store",
   REDDIT: "Reddit",
-  SPOTIFY_COMMUNITY: "Spotify Community",
-  TWITTER: "X (Twitter)",
   YOUTUBE: "YouTube Comments",
   GOOGLE_NEWS: "Google News",
   NEWSAPI: "News API",
   MEDIUM: "Medium",
   BLOG: "Public Blogs",
 };
+
+// Google Play (no third-party access to Spotify's own Play Console reviews),
+// X/Twitter (search now requires a paid API tier), and Spotify Community (no
+// public API or stable feed) can never return real data for a tool like this
+// one, so they're excluded from ingestion and from every source-facing UI
+// list rather than showing permanently-synthetic options.
+export const ACTIVE_SOURCES: SourceType[] = [
+  SourceType.APP_STORE,
+  SourceType.REDDIT,
+  SourceType.YOUTUBE,
+  SourceType.GOOGLE_NEWS,
+  SourceType.NEWSAPI,
+  SourceType.MEDIUM,
+  SourceType.BLOG,
+];
 
 export const COUNTRY_NAMES: Record<string, string> = {
   US: "United States", GB: "United Kingdom", CA: "Canada", AU: "Australia",

@@ -1,12 +1,11 @@
-import { SourceType } from "@prisma/client";
+import { ACTIVE_SOURCES } from "@/lib/domain/spotify";
 import { getIngestionQueue, getAggregationQueue } from "@/lib/queue/queues";
 
 /** Enqueues one ingestion job per source. Consumed by the BullMQ worker (see src/workers/index.ts). */
 export async function enqueueDailyIngestion(): Promise<{ enqueued: number }> {
   const queue = getIngestionQueue();
-  const sources = Object.values(SourceType);
-  await queue.addBulk(sources.map((source) => ({ name: "ingest-source", data: { source } })));
-  return { enqueued: sources.length };
+  await queue.addBulk(ACTIVE_SOURCES.map((source) => ({ name: "ingest-source", data: { source } })));
+  return { enqueued: ACTIVE_SOURCES.length };
 }
 
 export async function enqueueAggregation(): Promise<void> {
