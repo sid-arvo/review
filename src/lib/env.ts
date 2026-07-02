@@ -27,9 +27,6 @@ const envSchema = z.object({
 
   APPLE_APP_ID: z.string().default("324684580"),
   APPLE_APP_STORE_COUNTRY: z.string().default("us"),
-  REDDIT_CLIENT_ID: z.string().optional().default(""),
-  REDDIT_CLIENT_SECRET: z.string().optional().default(""),
-  REDDIT_USER_AGENT: z.string().default("spotify-voc-intel/1.0"),
   YOUTUBE_API_KEY: z.string().optional().default(""),
   YOUTUBE_VIDEO_IDS: z.string().optional().default(""),
   NEWSAPI_API_KEY: z.string().optional().default(""),

@@ -11,7 +11,12 @@ export const maxDuration = 120;
 // Kept in code (not read from @/lib/domain/spotify's ACTIVE_SOURCES) so this
 // one-off cleanup still targets the right rows even after ACTIVE_SOURCES
 // changes in the future.
-const RETIRED_SOURCES: SourceType[] = [SourceType.GOOGLE_PLAY, SourceType.TWITTER, SourceType.SPOTIFY_COMMUNITY];
+const RETIRED_SOURCES: SourceType[] = [
+  SourceType.GOOGLE_PLAY,
+  SourceType.TWITTER,
+  SourceType.SPOTIFY_COMMUNITY,
+  SourceType.REDDIT,
+];
 
 function isAuthorized(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
@@ -21,11 +26,11 @@ function isAuthorized(request: Request): boolean {
 }
 
 /**
- * One-off cleanup for the Google Play / Twitter / Spotify Community
- * connectors being retired (see ACTIVE_SOURCES in @/lib/domain/spotify) -
- * purges the synthetic reviews already generated for them and refreshes
- * trend snapshots + the executive summary so aggregate numbers don't still
- * reflect data that no longer exists.
+ * One-off cleanup for retired connectors (see ACTIVE_SOURCES in
+ * @/lib/domain/spotify) - purges the synthetic reviews already generated for
+ * them and refreshes trend snapshots + the executive summary so aggregate
+ * numbers don't still reflect data that no longer exists. Safe to re-run:
+ * deleting an already-empty source is a no-op.
  */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {

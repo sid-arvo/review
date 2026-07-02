@@ -21,11 +21,6 @@ const INTEGRATIONS = [
       : "Falls back to a deterministic hash-based vector (works, but not semantically meaningful) - only OpenAI provides embeddings among configured providers",
   },
   { label: "Supabase Auth", configured: Boolean(env.NEXT_PUBLIC_SUPABASE_URL), note: "Falls back to a local demo admin session" },
-  {
-    label: "Reddit OAuth",
-    configured: Boolean(env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET),
-    note: "Falls back to the unauthenticated endpoint (often 403s), then synthetic reviews",
-  },
   { label: "YouTube Data API", configured: Boolean(env.YOUTUBE_API_KEY), note: "Falls back to synthetic reviews" },
   { label: "NewsAPI", configured: Boolean(env.NEWSAPI_API_KEY), note: "Falls back to synthetic articles" },
   { label: "Slack notifications", configured: Boolean(env.SLACK_WEBHOOK_URL), note: "Cron completion pings" },

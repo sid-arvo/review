@@ -72,7 +72,6 @@ export const PERSONA_TAXONOMY: Array<{ name: string; slug: string; description: 
 
 export const SOURCE_LABELS: Record<string, string> = {
   APP_STORE: "Apple App Store",
-  REDDIT: "Reddit",
   YOUTUBE: "YouTube Comments",
   GOOGLE_NEWS: "Google News",
   NEWSAPI: "News API",
@@ -81,13 +80,13 @@ export const SOURCE_LABELS: Record<string, string> = {
 };
 
 // Google Play (no third-party access to Spotify's own Play Console reviews),
-// X/Twitter (search now requires a paid API tier), and Spotify Community (no
-// public API or stable feed) can never return real data for a tool like this
+// X/Twitter (search now requires a paid API tier), Spotify Community (no
+// public API or stable feed), and Reddit (now 403s nearly all traffic, with
+// or without OAuth) can never reliably return real data for a tool like this
 // one, so they're excluded from ingestion and from every source-facing UI
 // list rather than showing permanently-synthetic options.
 export const ACTIVE_SOURCES: SourceType[] = [
   SourceType.APP_STORE,
-  SourceType.REDDIT,
   SourceType.YOUTUBE,
   SourceType.GOOGLE_NEWS,
   SourceType.NEWSAPI,
