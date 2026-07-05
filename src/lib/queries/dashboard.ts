@@ -114,19 +114,6 @@ export async function getPersonaBreakdown(filters: DashboardFilters) {
   );
 }
 
-export async function getCountryBreakdown(filters: DashboardFilters) {
-  const where = filtersToWhere(filters);
-  const rows = await prisma.review.groupBy({
-    by: ["country"],
-    where: { ...where, country: { not: null } },
-    _count: true,
-    _avg: { sentimentScore: true },
-    orderBy: { _count: { country: "desc" } },
-    take: 20,
-  });
-  return rows.map((r) => ({ country: r.country!, volume: r._count, avgSentiment: r._avg.sentimentScore ?? 0 }));
-}
-
 export async function getFeatureRequests(limit = 20) {
   const requests = await prisma.featureRequest.findMany({
     include: { _count: { select: { mentions: true } }, mentions: { take: 1, include: { review: true } } },
