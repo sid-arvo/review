@@ -1,42 +1,17 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import dynamic from "next/dynamic";
+import type { HorizontalBarChart as HorizontalBarChartImpl } from "./bar-chart-impl";
 
-interface HorizontalBarChartProps {
-  data: Array<{ label: string; value: number; color?: string }>;
-  height?: number;
-  valueFormatter?: (v: number) => string;
-}
-
-export function HorizontalBarChart({ data, height, valueFormatter }: HorizontalBarChartProps) {
-  const config: ChartConfig = { value: { label: "Value" } };
-  return (
-    <ChartContainer config={config} style={{ height: height ?? Math.max(180, data.length * 34) }} className="w-full">
-      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
-        <CartesianGrid horizontal={false} strokeDasharray="3 3" opacity={0.2} />
-        <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} />
-        <YAxis
-          type="category"
-          dataKey="label"
-          tickLine={false}
-          axisLine={false}
-          width={150}
-          fontSize={12}
-        />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              formatter={(value) => (valueFormatter ? valueFormatter(Number(value)) : String(value))}
-            />
-          }
-        />
-        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-          {data.map((entry, idx) => (
-            <Cell key={idx} fill={entry.color ?? "var(--chart-1)"} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ChartContainer>
-  );
-}
+// recharts is a large dependency; every dashboard page that renders a chart
+// was eagerly bundling it into that page's client JS. Loading it via
+// next/dynamic (no SSR, since these charts are purely client-rendered anyway)
+// splits recharts into its own chunk that's fetched after initial hydration
+// instead of blocking it.
+export const HorizontalBarChart = dynamic(
+  () => import("./bar-chart-impl").then((m) => m.HorizontalBarChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-[220px] w-full animate-pulse rounded-md bg-muted" />,
+  }
+) as typeof HorizontalBarChartImpl;

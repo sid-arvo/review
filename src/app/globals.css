@@ -36,7 +36,10 @@
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.72 0.19 149);
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.96 0 0);
+  /* Was oklch(0.96 0 0) - only 0.025 away from --sidebar's 0.985, so the
+     hover/active state on nav items was nearly invisible. Matched to
+     --sidebar-border's lightness for a clearly visible, still-neutral fill. */
+  --sidebar-accent: oklch(0.91 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.91 0 0);
   --sidebar-ring: oklch(0.72 0.19 149);
@@ -73,7 +76,10 @@
   --sidebar-foreground: oklch(0.98 0 0);
   --sidebar-primary: oklch(0.72 0.19 149);
   --sidebar-primary-foreground: oklch(0.09 0 0);
-  --sidebar-accent: oklch(0.16 0 0);
+  /* Was oklch(0.16 0 0), only 0.09 above --sidebar's 0.07 - too subtle to
+     read as a hover/active state. Bumped to line up with the app's main
+     --accent (0.2) for a clearly visible, still-neutral highlight. */
+  --sidebar-accent: oklch(0.22 0 0);
   --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.72 0.19 149);

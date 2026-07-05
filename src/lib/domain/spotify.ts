@@ -27,20 +27,6 @@ export const SURFACE_LABELS: Record<RecommendationSurface, string> = {
   OTHER: "Other",
 };
 
-export const DISCOVERY_SURFACES: RecommendationSurface[] = [
-  RecommendationSurface.DISCOVER_WEEKLY,
-  RecommendationSurface.RELEASE_RADAR,
-  RecommendationSurface.AI_DJ,
-  RecommendationSurface.DAYLIST,
-  RecommendationSurface.BLEND,
-  RecommendationSurface.SMART_SHUFFLE,
-  RecommendationSurface.MADE_FOR_YOU,
-  RecommendationSurface.RADIO,
-  RecommendationSurface.PLAYLIST_RECOMMENDATIONS,
-  RecommendationSurface.ARTIST_RADIO,
-  RecommendationSurface.ALBUM_RECOMMENDATIONS,
-];
-
 export const TOPIC_TAXONOMY: Array<{ name: string; slug: string; description: string; color: string }> = [
   { name: "Music Discovery", slug: "music-discovery", description: "Finding new music, artists, and genres", color: "#1DB954" },
   { name: "Recommendation Repetition", slug: "recommendation-repetition", description: "Recommendations feel repetitive or stale", color: "#F59E0B" },

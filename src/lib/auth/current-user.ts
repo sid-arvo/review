@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { UserRole } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -21,8 +22,13 @@ const DEMO_MODE = process.env.DEMO_MODE === "true";
  * upserts and returns a fixed demo admin row so the full dashboard is
  * reviewable without an OAuth setup step, while still being a real DB row
  * other tables can reference by id.
+ *
+ * Wrapped in React's `cache()` so multiple Server Components rendered within
+ * the same request - the dashboard layout and every page's `PageShell` both
+ * call this - share one resolved result instead of each re-running the
+ * Supabase auth call and the `prisma.user.upsert` write.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   if (!hasSupabase() || DEMO_MODE) {
     return prisma.user.upsert({
       where: { supabaseId: DEMO_SUPABASE_ID },
@@ -61,4 +67,4 @@ export async function getCurrentUser() {
   });
 
   return user;
-}
+});
