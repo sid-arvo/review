@@ -11,7 +11,10 @@ export async function updateSession(request: NextRequest) {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
+  // DEMO_MODE bypasses Supabase login entirely (see current-user.ts), so
+  // refreshing a session nobody checks would just be a wasted auth API
+  // round trip on every request.
+  if (!url || !key || process.env.DEMO_MODE === "true") {
     return supabaseResponse;
   }
 

@@ -17,20 +17,17 @@ const DEMO_SUPABASE_ID = "demo-admin";
 const DEMO_MODE = process.env.DEMO_MODE === "true";
 
 /**
- * Resolves the current user, auto-provisioning a Prisma User row on first
- * sign-in. When Supabase is not configured (local/demo environments) this
- * upserts and returns a fixed demo admin row so the full dashboard is
- * reviewable without an OAuth setup step, while still being a real DB row
- * other tables can reference by id.
- *
- * Wrapped in React's `cache()` so multiple Server Components rendered within
- * the same request - the dashboard layout and every page's `PageShell` both
- * call this - share one resolved result instead of each re-running the
- * Supabase auth call and the `prisma.user.upsert` write.
+ * The demo admin row never changes, so once a warm server instance has
+ * resolved it there's no need to hit the DB again on every navigation - a
+ * per-request `cache()` doesn't help here since each page load is a new
+ * request. This module-scope cache persists for the lifetime of the server
+ * process and is what actually cuts the repeated upsert-write.
  */
-export const getCurrentUser = cache(async () => {
-  if (!hasSupabase() || DEMO_MODE) {
-    return prisma.user.upsert({
+let demoUserPromise: ReturnType<typeof prisma.user.upsert> | null = null;
+
+function getDemoUser() {
+  if (!demoUserPromise) {
+    demoUserPromise = prisma.user.upsert({
       where: { supabaseId: DEMO_SUPABASE_ID },
       update: {},
       create: {
@@ -40,6 +37,30 @@ export const getCurrentUser = cache(async () => {
         role: UserRole.ADMIN,
       },
     });
+    demoUserPromise.catch(() => {
+      demoUserPromise = null;
+    });
+  }
+  return demoUserPromise;
+}
+
+const LAST_LOGIN_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * Resolves the current user, auto-provisioning a Prisma User row on first
+ * sign-in. When Supabase is not configured (local/demo environments) this
+ * returns a fixed demo admin row so the full dashboard is reviewable
+ * without an OAuth setup step, while still being a real DB row other
+ * tables can reference by id.
+ *
+ * Wrapped in React's `cache()` so multiple Server Components rendered within
+ * the same request - the dashboard layout and every page's `PageShell` both
+ * call this - share one resolved result instead of each re-running the
+ * lookup below.
+ */
+export const getCurrentUser = cache(async () => {
+  if (!hasSupabase() || DEMO_MODE) {
+    return getDemoUser();
   }
 
   const supabase = await createClient();
@@ -51,16 +72,30 @@ export const getCurrentUser = cache(async () => {
     return null;
   }
 
+  // Most requests are an already-provisioned user whose profile hasn't
+  // changed since the last visit - a single indexed read instead of an
+  // upsert-write avoids hitting the DB's write path (WAL + index update)
+  // on every page navigation. Only fall through to a write when this is a
+  // first sign-in, the email changed, or lastLoginAt is stale enough to be
+  // worth refreshing.
+  const existing = await prisma.user.findUnique({ where: { supabaseId: authUser.id } });
+  const email = authUser.email ?? "";
+  const isStale = !existing?.lastLoginAt || Date.now() - existing.lastLoginAt.getTime() > LAST_LOGIN_STALE_MS;
+
+  if (existing && existing.email === email && !isStale) {
+    return existing;
+  }
+
   const user = await prisma.user.upsert({
     where: { supabaseId: authUser.id },
     update: {
-      email: authUser.email ?? "",
+      email,
       lastLoginAt: new Date(),
     },
     create: {
       supabaseId: authUser.id,
-      email: authUser.email ?? "",
-      name: (authUser.user_metadata?.full_name as string | undefined) ?? authUser.email ?? "New user",
+      email,
+      name: (authUser.user_metadata?.full_name as string | undefined) ?? email ?? "New user",
       avatarUrl: (authUser.user_metadata?.avatar_url as string | undefined) ?? null,
       role: UserRole.VIEWER,
     },
